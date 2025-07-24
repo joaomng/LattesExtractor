@@ -3,6 +3,7 @@ import os
 import re
 import csv
 import time
+import datetime
 import unicodedata
 import tkinter as tk
 from tkinter import messagebox, scrolledtext, ttk
@@ -63,6 +64,7 @@ def click_first_result():
         print("Primeiro resultado clicado.")
     except Exception as e:
         print(f"Erro ao clicar no primeiro resultado: {e}")
+        return True
 
 # Abre o currículo detalhado via botão
 def open_lattes_cv():
@@ -112,11 +114,14 @@ def select_year_filter(year="Todos"):
     try:
         iframe = wait.until(EC.presence_of_element_located((By.CLASS_NAME, "iframe-modal")))
         driver.switch_to.frame(iframe)
+        if driver.find_elements(By.XPATH, "//b[contains(text(), 'Não existem produções cadastradas para este currículo')]"):
+            return 1
         select_element = wait.until(EC.presence_of_element_located((By.TAG_NAME, "select")))
         Select(select_element).select_by_visible_text(str(year))
         print(f"Ano '{year}' selecionado com sucesso.")
     except Exception as e:
         print(f"Erro ao selecionar ano: {e}")
+        return 2
     finally:
         driver.switch_to.default_content()
 
@@ -193,9 +198,23 @@ def run_search(name_list, year="Todos", progress_callback=None):
         check_all_curricula()
         enter_search_name(name)
         click_search_button()
-        click_first_result()
+        if click_first_result(): 
+            results.append([[name, 'Usuario não encontrado', '', '']])
+            if progress_callback:
+                progress_callback(i, total)
+            continue        
         click_production_indicators()
-        select_year_filter(year)
+        match select_year_filter(year):
+            case 1:
+                results.append([[name, 'Nenhuma produção encontrada', '', '']])
+                if progress_callback:
+                    progress_callback(i, total)
+                continue
+            case 2:    
+                results.append([[name, f'Não tem produções pós {year}', '', '']])
+                if progress_callback:
+                    progress_callback(i, total)
+                continue         
         results.append(extract_sectioned_tables(name))
         if progress_callback:
             progress_callback(i, total)
@@ -245,7 +264,7 @@ entrada_nomes.pack()
 
 tk.Label(janela, text="Pesquisar as produções a partir do ano:").pack(pady=5)
 ano_var = tk.StringVar(value="Todos")
-anos_opcoes = ["Todos"] + [str(ano) for ano in range(2024, 2000, -1)]
+anos_opcoes = ["Todos"] + [str(ano) for ano in range(int((datetime.datetime.now()).year)-1, 1998, -1)]
 ano_menu = tk.OptionMenu(janela, ano_var, *anos_opcoes)
 ano_menu.pack()
 

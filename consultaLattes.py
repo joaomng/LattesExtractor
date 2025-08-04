@@ -114,16 +114,33 @@ def select_year_filter(year="Todos"):
     try:
         iframe = wait.until(EC.presence_of_element_located((By.CLASS_NAME, "iframe-modal")))
         driver.switch_to.frame(iframe)
+
         if driver.find_elements(By.XPATH, "//b[contains(text(), 'Não existem produções cadastradas para este currículo')]"):
+            driver.switch_to.default_content()
             return 1
+
         select_element = wait.until(EC.presence_of_element_located((By.TAG_NAME, "select")))
+        options = [opt.text.strip() for opt in select_element.find_elements(By.TAG_NAME, "option")]
+
+        if str(year) not in options:
+            raise ValueError(f"Ano '{year}' não está entre as opções disponíveis: {options}")
+
         Select(select_element).select_by_visible_text(str(year))
         print(f"Ano '{year}' selecionado com sucesso.")
     except Exception as e:
         print(f"Erro ao selecionar ano: {e}")
-        return 2
+        if str(year).isdigit() and int(year) + 1 <= datetime.datetime.now().year:
+            print(f"Selecionando ano {int(year) + 1} por padrão.")
+            driver.switch_to.default_content()
+            return select_year_filter(str(int(year) + 1))
+        else:
+            driver.switch_to.default_content()
+            return 2
     finally:
-        driver.switch_to.default_content()
+        try:
+            driver.switch_to.default_content()
+        except:
+            pass
 
 # === FUNÇÃO PARA EXTRAÇÃO DOS DADOS DE PRODUÇÃO ===
 

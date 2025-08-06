@@ -56,14 +56,28 @@ def click_search_button():
     except Exception as e:
         print(f"Erro ao clicar no botão de busca: {e}")
 
-# Clica no primeiro resultado retornado pela busca
-def click_first_result():
+# Conta o número de resultados retornados pela busca
+def count_search_results():
     try:
-        primeiro_resultado = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "div.resultado ol li a")))
-        primeiro_resultado.click()
-        print("Primeiro resultado clicado.")
+        resultados = wait.until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, "div.resultado ol li")))
+        return len(resultados)
     except Exception as e:
-        print(f"Erro ao clicar no primeiro resultado: {e}")
+        print(f"Erro ao contar resultados: {e}")
+        return 0
+
+# Clica no primeiro resultado retornado pela busca
+def click_result_by_index(index=0):
+    try:
+        resultados = wait.until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, "div.resultado ol li a")))
+        if index < 0 or index >= len(resultados):
+            print(f"Índice {index} fora do intervalo de resultados ({len(resultados)} encontrados).")
+            return True
+        resultado = resultados[index]
+        driver.execute_script("arguments[0].scrollIntoView(true);", resultado)
+        resultado.click()
+        print(f"Resultado {index + 1} clicado.")
+    except Exception as e:
+        print(f"Erro ao clicar no resultado {index + 1}: {e}")
         return True
 
 # Abre o currículo detalhado via botão
@@ -76,6 +90,19 @@ def open_lattes_cv():
         time.sleep(0.5)
         botao_abrir.click()
         print("Currículo aberto via fluxo normal.")
+    except Exception as e:
+        print(f"Erro ao abrir currículo: {e}")
+
+# Fecha o modal de currículo
+def close_modal():
+    try:
+        wait.until(EC.presence_of_element_located((By.CLASS_NAME, "moldal-interna")))
+        time.sleep(1)
+        botao_fechar = wait.until(EC.element_to_be_clickable((By.ID, "idbtnfechar")))
+        driver.execute_script("arguments[0].scrollIntoView(true);", botao_fechar)
+        time.sleep(0.5)
+        botao_fechar.click()
+        print("modal fechado.")
     except Exception as e:
         print(f"Erro ao abrir currículo: {e}")
 
@@ -203,11 +230,33 @@ def generate_csv(data, filename="producao.csv"):
                 writer.writerow(row)
     print(f"Arquivo '{filename}' gerado com sucesso!")
 
-# === FLUXO DE BUSCA PARA LISTA DE NOMES ===
 
+def continue_search(name, year, progress_callback, i, total, index):
+    if click_result_by_index(index): 
+            results.append([[name, 'Usuario não encontrado', '', '']])
+            if progress_callback:
+                progress_callback(i, total)
+            return 1
+    click_production_indicators()
+    match select_year_filter(year):
+        case 1:
+            results.append([[name, 'Nenhuma produção encontrada', '', '']])
+            if progress_callback:
+                progress_callback(i, total)
+            return 1
+        case 2:    
+            results.append([[name, f'Não tem produções pós {year}', '', '']])
+            if progress_callback:
+                progress_callback(i, total)
+            return 1        
+    results.append(extract_sectioned_tables(name))
+    if progress_callback:
+        progress_callback(i, total)
+
+# === FLUXO DE BUSCA PARA LISTA DE NOMES ===
+results = []
 # Executa a automação completa para uma lista de nomes
 def run_search(name_list, year="Todos", progress_callback=None):
-    results = []
     total = len(name_list)
     for i, name in enumerate(name_list, 1):
         os.system('cls' if os.name == 'nt' else 'clear')
@@ -215,26 +264,18 @@ def run_search(name_list, year="Todos", progress_callback=None):
         check_all_curricula()
         enter_search_name(name)
         click_search_button()
-        if click_first_result(): 
-            results.append([[name, 'Usuario não encontrado', '', '']])
-            if progress_callback:
-                progress_callback(i, total)
-            continue        
-        click_production_indicators()
-        match select_year_filter(year):
-            case 1:
-                results.append([[name, 'Nenhuma produção encontrada', '', '']])
-                if progress_callback:
-                    progress_callback(i, total)
-                continue
-            case 2:    
-                results.append([[name, f'Não tem produções pós {year}', '', '']])
-                if progress_callback:
-                    progress_callback(i, total)
-                continue         
-        results.append(extract_sectioned_tables(name))
-        if progress_callback:
-            progress_callback(i, total)
+        x = count_search_results()
+        print(f"Resultados encontrados para '{name}': {x}")
+        if x > 1:
+            for a in range(0,x):
+                if continue_search(name + f" ({a+ 1})", year, progress_callback, i, total, a) == 1:
+                    close_modal() 
+                    continue    
+                close_modal()
+        else:
+            if continue_search(name, year, progress_callback, i, total, 0) == 1:
+                continue    
+            # close_modal()
     generate_csv(results)
 
 # === INTERFACE GRÁFICA (TKINTER) ===

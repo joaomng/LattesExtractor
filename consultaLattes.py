@@ -6,11 +6,11 @@ import time
 import datetime
 import unicodedata
 import tkinter as tk
-from tkinter import messagebox, scrolledtext, ttk
 from threading import Thread
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
+from tkinter import messagebox, scrolledtext, ttk
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait, Select
 from selenium.webdriver.support import expected_conditions as EC
@@ -231,6 +231,8 @@ def generate_csv(data, filename="producao.csv"):
     print(f"Arquivo '{filename}' gerado com sucesso!")
 
 
+### === FLUXO DE BUSCA PARA LISTA DE NOMES === ###
+
 def continue_search(name, year, progress_callback, i, total, index):
     if click_result_by_index(index): 
             results.append([[name, 'Usuario não encontrado', '', '']])
@@ -253,7 +255,7 @@ def continue_search(name, year, progress_callback, i, total, index):
     if progress_callback:
         progress_callback(i, total)
 
-# === FLUXO DE BUSCA PARA LISTA DE NOMES ===
+
 results = []
 # Executa a automação completa para uma lista de nomes
 def run_search(name_list, year="Todos", progress_callback=None):

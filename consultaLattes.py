@@ -5,7 +5,6 @@ import csv
 import time
 import datetime
 import unicodedata
-import tkinter as tk
 from threading import Thread
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -279,7 +278,7 @@ def run_search(name_list, year="Todos", progress_callback=None):
                 continue    
             # close_modal()
     generate_csv(results)
-
+ 
 # === INTERFACE GRÁFICA (TKINTER) ===
 
 # Inicia a busca ao clicar no botão da interface

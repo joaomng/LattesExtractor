@@ -1,4 +1,5 @@
 # === IMPORTAÇÕES ===
+from difflib import SequenceMatcher
 import os
 import re
 import csv
@@ -7,6 +8,7 @@ import datetime
 import unicodedata
 import tkinter as tk
 from threading import Thread
+from bs4 import BeautifulSoup
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
@@ -90,6 +92,13 @@ def open_lattes_cv():
         time.sleep(0.5)
         botao_abrir.click()
         print("Currículo aberto via fluxo normal.")
+
+        # Espera abrir uma nova aba
+        wait.until(lambda d: len(d.window_handles) > 1)
+        new_tab = driver.window_handles[-1]  # última aba aberta
+        driver.switch_to.window(new_tab)
+        print("Trocado para a nova aba do currículo.")
+
     except Exception as e:
         print(f"Erro ao abrir currículo: {e}")
 
@@ -218,6 +227,42 @@ def extract_sectioned_tables(name):
     finally:
         driver.switch_to.default_content()
 
+# Extrai dos dados da formação acadêmica
+def extract_degree(html: str) -> str:
+    """
+    Extrai o conteúdo HTML entre as duas primeiras <hr> após o elemento
+    <a name="FormacaoAcademicaTitulacao">.
+    """
+    # Aguarda o carregamento do nome no currículo
+    try: 
+        WebDriverWait(driver, 20).until(
+            EC.presence_of_element_located((By.XPATH, "//h2[@class='nome']"))
+        )
+    except Exception as e:
+        print(f"Erro ao aguardar o nome do currículo: {e}")
+    soup = BeautifulSoup(html, "html.parser")
+
+    # Localiza o <a> de referência
+    anchor = soup.find("a", {"name": "FormacaoAcademicaTitulacao"})
+    if not anchor:
+        return ""
+
+    # Percorre os elementos seguintes no DOM
+    hr_count = 0
+    content_parts = []
+
+    for elem in anchor.next_elements:
+        if getattr(elem, "name", None) == "hr":
+            hr_count += 1
+            if hr_count == 2:
+                break
+            continue
+        if hr_count < 1:
+            continue  # só começa após a primeira <hr>
+        content_parts.append(str(elem))
+
+    return "".join(content_parts).strip()
+
 # === FUNÇÃO PARA SALVAR RESULTADOS EM CSV ===
 
 # Gera um CSV com os dados extraídos
@@ -230,9 +275,128 @@ def generate_csv(data, filename="producao.csv"):
                 writer.writerow(row)
     print(f"Arquivo '{filename}' gerado com sucesso!")
 
+# Gera um CSV com as formações acadêmicas
+def degree_csv(nome: str, formacoes: list[str], caminho_csv: str = "formacoes.csv"):
+    """
+    Cria (ou adiciona a) um arquivo CSV com duas colunas:
+    Nome | Formacao
+
+    - nome: nome da pessoa buscada
+    - formacoes: lista de strings com as formações (retorno de clean_degree)
+    - caminho_csv: caminho do arquivo CSV de saída
+    """
+
+    # Modo "a" (append) adiciona novas linhas se o arquivo já existir
+    with open(caminho_csv, mode="a", newline="", encoding="utf-8") as arquivo:
+        writer = csv.writer(arquivo)
+        
+        # Escreve o cabeçalho apenas se o arquivo estiver vazio
+        if arquivo.tell() == 0:
+            writer.writerow(["Nome", "Formacao"])
+        
+        for f in formacoes:
+            writer.writerow([nome, f])
+
+## === FUNÇÕES AUXILIARES === ###
+
+# Limpa e extrai as formações acadêmicas do HTML
+def clean_degree(html: str):
+    """
+    Extrai e limpa as formações acadêmicas do HTML da seção 'Formação Acadêmica'
+    de um currículo Lattes, parando antes de 'Formação Complementar'.
+    Retorna uma lista de strings, cada uma representando uma formação completa.
+    """
+
+    soup = BeautifulSoup(html, "html.parser")
+
+    # Extrai blocos com texto
+    blocos = [b.get_text(" ", strip=True) for b in soup.find_all(["p", "div"]) if b.get_text(strip=True)]
+
+    # Junta todo o texto
+    texto_geral = " ".join(blocos)
+
+    # Remove tudo após "Formação Complementar"
+    texto_geral = re.split(r"Formação\s+Complementar", texto_geral, flags=re.IGNORECASE)[0]
+
+    # Divide cada formação por padrão de anos (ex: 2007 - 2011)
+    partes = re.split(r"(?=\b\d{4}\s*-\s*\d{4}\b)", texto_geral)
+
+    limpas = []
+    vistos = set()
+
+    for parte in partes:
+        texto = parte.strip()
+        if not texto:
+            continue
+
+        # Limpeza geral
+        texto = re.sub(r"\s+", " ", texto)
+        texto = re.sub(r"Oasisbr|O\s*Portal\s*Brasileiro\s*de\s*Publicações.*", "", texto, flags=re.IGNORECASE)
+        texto = re.sub(r"[,.]{2,}", ".", texto)
+        texto = texto.strip(" ,.;")
+
+        # Ignora textos muito curtos
+        if len(texto) < 30:
+            continue
+
+        # --- 🔹 Remove repetições internas (ex: "Graduação em X. Graduação em X") ---
+        frases = [f.strip() for f in re.split(r"[.]", texto) if f.strip()]
+        frases_unicas = []
+        vistos_local = set()
+        for f in frases:
+            f_norm = re.sub(r"\s+", " ", f.lower().strip())
+            if f_norm not in vistos_local:
+                vistos_local.add(f_norm)
+                frases_unicas.append(f)
+        texto = ". ".join(frases_unicas).strip()
+        if not texto.endswith("."):
+            texto += "."
+
+        # Evita duplicatas entre formações
+        texto_norm = re.sub(r"\s+", " ", texto.lower().strip(". ,;"))
+        if texto_norm not in vistos:
+            vistos.add(texto_norm)
+            limpas.append(texto)
+
+    return limpas
+
+# Testa a similaridade entre duas strings
+def similar(a: str, b: str) -> float:
+    """Retorna o grau de similaridade entre duas strings (0 a 1)."""
+    return SequenceMatcher(None, a, b).ratio()
+
+# Tira as duplicatas (inclusive similares) de uma lista de strings
+def remove_duplicates(text_list: list[str], threshold: float = 0.9) -> list[str]:
+    """
+    Remove duplicatas (inclusive similares) de uma lista de strings.
+    threshold define o quão parecidas duas entradas precisam ser para serem consideradas iguais.
+    """
+    cleaned = []
+    for text in text_list:
+        # Normaliza espaços e letras
+        normalized = " ".join(text.split()).strip().lower()
+        
+        # Só adiciona se não for muito parecido com algo já guardado
+        if not any(similar(normalized, existing.lower()) > threshold for existing in cleaned):
+            cleaned.append(text.strip())
+    return cleaned
 
 ### === FLUXO DE BUSCA PARA LISTA DE NOMES === ###
 
+#
+def degree_search(name):
+    """Função principal para buscar e extrair formações acadêmicas de um nome."""
+    for i in range(count_search_results()):
+        click_result_by_index(i)
+        open_lattes_cv()
+        dados = extract_degree(driver.page_source)
+        degree_csv(name if i == 0 else name+f"({i})", remove_duplicates(clean_degree(dados), threshold=0.8))
+        driver.close()  # Fecha aba do currículo
+        driver.switch_to.window(driver.window_handles[0])  # Volta à busca
+        close_modal()
+        time.sleep(2)
+
+# Continua a busca para múltiplos resultados
 def continue_search(name, year, progress_callback, i, total, index):
     if click_result_by_index(index): 
             results.append([[name, 'Usuario não encontrado', '', '']])
@@ -268,6 +432,12 @@ def run_search(name_list, year="Todos", progress_callback=None):
         click_search_button()
         x = count_search_results()
         print(f"Resultados encontrados para '{name}': {x}")
+        if switch_var.get():
+            print("Modo Formação Ativado")
+            degree_search(name)
+            if progress_callback:
+                progress_callback(i, total) 
+            continue
         if x > 1:
             for a in range(0,x):
                 if continue_search(name + f" ({a+ 1})", year, progress_callback, i, total, a) == 1:
@@ -278,7 +448,10 @@ def run_search(name_list, year="Todos", progress_callback=None):
             if continue_search(name, year, progress_callback, i, total, 0) == 1:
                 continue    
             # close_modal()
-    generate_csv(results)
+    if switch_var.get():        
+        print("Arquivo formacao.csv gerado com sucesso!")
+    else:
+        generate_csv(results)
  
 # === INTERFACE GRÁFICA (TKINTER) ===
 
@@ -327,6 +500,32 @@ ano_var = tk.StringVar(value="Todos")
 anos_opcoes = ["Todos"] + [str(ano) for ano in range(int((datetime.datetime.now()).year)-1, 1998, -1)]
 ano_menu = tk.OptionMenu(janela, ano_var, *anos_opcoes)
 ano_menu.pack()
+
+style = ttk.Style()
+style.configure("Switch.TCheckbutton",
+                foreground="black",
+                background=janela["bg"],
+                font=("Arial", 10))
+style.map("Switch.TCheckbutton",
+          foreground=[('selected', 'white')],
+          background=[('selected', '#4caf50')])
+
+switch_var = tk.BooleanVar(value=False)
+
+
+switch = ttk.Checkbutton(
+    janela,
+    text="Modo Formação/Produção",
+    style="Switch.TCheckbutton",
+    variable=switch_var,
+    command=lambda: label_modo.config(
+        text="Extração de Formação" if switch_var.get() else "Extração de Produção"
+    )
+)
+switch.pack(pady=5)
+
+label_modo = tk.Label(janela, text="Extração de Produção")
+label_modo.pack(pady=5)
 
 btn_iniciar = tk.Button(janela, text="Iniciar Extração", command=start_gui_search)
 btn_iniciar.pack(pady=10)

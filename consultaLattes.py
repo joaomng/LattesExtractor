@@ -5,6 +5,7 @@ import csv
 import time
 import datetime
 import unicodedata
+import tkinter as tk
 from threading import Thread
 from selenium import webdriver
 from selenium.webdriver.common.by import By

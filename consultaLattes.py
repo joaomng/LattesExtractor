@@ -267,8 +267,6 @@ def extract_degree(html: str) -> str:
 
 # Gera um CSV com os dados extraídos
 def generate_csv(data, filename="producao.csv"):
-    if os.path.exists(filename):
-        os.remove(filename)
     with open(filename, mode="w", newline="", encoding="utf-8-sig") as file:
         writer = csv.writer(file)
         writer.writerow(["Nome", "Categoria", "Tipo", "Quantidade"])

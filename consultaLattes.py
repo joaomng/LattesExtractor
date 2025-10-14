@@ -320,6 +320,67 @@ def degree_csv(nome: str, formacoes: list[str], caminho_csv: str = "formacoes.cs
 
 ## === FUNÇÕES AUXILIARES === ###
 
+def cleaner_degree(lista):
+    """
+    recebe uma lista de strings (a retornada por clean_degree). Cada string
+    é uma formação completa.
+    Pra cada formação, a altera para informar só o nome do título ("doutorado em tal coisa",
+    "mestrado em tal coisa", "graduação em tal coisa") e a grande área da formação.
+
+    No caso que realmente precisamos é da GRANDE ÁREA DA MAIOR TITULAÇÃO
+    E NOME DO CURSO DE GRADUAÇÃO
+
+    Retorna a lista alterada
+    """
+    
+    lista_final = []
+
+    #appendar = 1 #flag se vou realmente querer fazer o append ou não. as vezes vou querer remover
+                 #por completo uma formação, pq não é graduação nem doutorado nem mestrado
+
+    if(len(lista)>0):             
+    
+        for formacao in lista:
+            #appendar = 1
+
+            string_final=""
+
+            frases = formacao.split(".")
+
+            if(len(frases)>0):
+
+                frase = frases[0]
+
+                string_final += frase +". "#"ano tal - ano tal Doutorado em tal coisa"
+
+                i = 1
+
+                #procurando a grande área
+                while(i<len(frases)):
+                    frase = frases[i]
+
+                    if(frase.find("Grande área") != -1): #==0?
+                        #é pq encontramos a grande área
+
+                        string_final +=  frase + "."
+                        break
+
+                    i+=1
+
+
+
+            else: #a formacao por algum motivo nao tinha nem ponto final
+                string_final = formacao #vou manter igual por via das dúvidas
+
+        
+            #if(appendar ==1):
+                #lista_final.append(string_final)
+
+            lista_final.append(string_final)
+
+    return lista_final
+
+
 # Limpa e extrai as formações acadêmicas do HTML
 def clean_degree(html: str):
     """
@@ -379,7 +440,7 @@ def clean_degree(html: str):
             vistos.add(texto_norm)
             limpas.append(texto)
 
-    return limpas
+    return cleaner_degree(limpas)
 
 # Testa a similaridade entre duas strings
 def similar(a: str, b: str) -> float:

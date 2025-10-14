@@ -100,7 +100,23 @@ def open_lattes_cv():
         print("Trocado para a nova aba do currículo.")
 
     except Exception as e:
-        print(f"Erro ao abrir currículo: {e}")
+        try:
+            wait.until(EC.presence_of_element_located((By.CLASS_NAME, "moldal-interna")))
+            time.sleep(1)
+            botao_abrir = wait.until(EC.element_to_be_clickable((By.ID, "idbtnabrircurriculo")))
+            driver.execute_script("arguments[0].scrollIntoView(true);", botao_abrir)
+            time.sleep(0.5)
+            botao_abrir.click()
+            print("Currículo aberto via fluxo normal.")
+
+            # Espera abrir uma nova aba
+            wait.until(lambda d: len(d.window_handles) > 1)
+            new_tab = driver.window_handles[-1]  # última aba aberta
+            driver.switch_to.window(new_tab)
+            print("Trocado para a nova aba do currículo.")
+
+        except Exception as e:
+            print(f"Erro ao abrir currículo: {e}")
 
 # Fecha o modal de currículo
 def close_modal():

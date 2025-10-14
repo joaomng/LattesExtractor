@@ -114,9 +114,10 @@ def open_lattes_cv():
             new_tab = driver.window_handles[-1]  # última aba aberta
             driver.switch_to.window(new_tab)
             print("Trocado para a nova aba do currículo.")
-
+            return False
         except Exception as e:
             print(f"Erro ao abrir currículo: {e}")
+            return True
 
 # Fecha o modal de currículo
 def close_modal():
@@ -409,7 +410,10 @@ def degree_search(name):
     """Função principal para buscar e extrair formações acadêmicas de um nome."""
     for i in range(count_search_results()):
         click_result_by_index(i)
-        open_lattes_cv()
+        if open_lattes_cv():
+            dados = [name, 'Erro na Abertura do Currículo']
+            degree_csv(name if i == 0 else name+f"({i})", dados)
+            continue
         dados = extract_degree(driver.page_source)
         degree_csv(name if i == 0 else name+f"({i})", remove_duplicates(clean_degree(dados), threshold=0.8))
         driver.close()  # Fecha aba do currículo

@@ -277,6 +277,9 @@ def generate_csv(data, filename="producao.csv"):
                 writer.writerow(row)
     print(f"Arquivo '{filename}' gerado com sucesso!")
 
+# Deletar o arquivo CSV
+if os.path.exists("formacoes.csv"):
+    os.remove("formacoes.csv")
 # Gera um CSV com as formações acadêmicas
 def degree_csv(nome: str, formacoes: list[str], caminho_csv: str = "formacoes.csv"):
     """

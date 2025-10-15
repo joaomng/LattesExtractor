@@ -130,7 +130,7 @@ def close_modal():
         botao_fechar.click()
         print("modal fechado.")
     except Exception as e:
-        print(f"Erro ao abrir currículo: {e}")
+        print(f"Erro ao fechar o modal: {e}")
 
 # === FUNÇÕES PARA ACESSO ÀS SEÇÕES DE PRODUÇÃO ===
 
@@ -294,9 +294,7 @@ def generate_csv(data, filename="producao.csv"):
                 writer.writerow(row)
     print(f"Arquivo '{filename}' gerado com sucesso!")
 
-# Deletar o arquivo CSV
-if os.path.exists("formacoes.csv"):
-    os.remove("formacoes.csv")
+
 # Gera um CSV com as formações acadêmicas
 def degree_csv(nome: str, formacoes: list[str], caminho_csv: str = "formacoes.csv"):
     """
@@ -321,7 +319,7 @@ def degree_csv(nome: str, formacoes: list[str], caminho_csv: str = "formacoes.cs
 
 ## === FUNÇÕES AUXILIARES === ###
 
-def cleaner_degree(lista):
+def cleaner_degree(lista, instituicao=True):
     """
     recebe uma lista de strings (a retornada por clean_degree). Cada string
     é uma formação completa.
@@ -351,7 +349,11 @@ def cleaner_degree(lista):
             if(len(frases)>0):
 
                 frase = frases[0]
-
+                #adicionando a segunda frase, que normalmente é a instituição
+                #mas só se a flag instituicao estiver ativada
+                if instituicao and len(frases)>1:
+                    frase = frase +"."+ frases[1]
+                
                 string_final += frase +". "#"ano tal - ano tal Doutorado em tal coisa"
 
                 i = 1
@@ -449,7 +451,7 @@ def similar(a: str, b: str) -> float:
     return SequenceMatcher(None, a, b).ratio()
 
 # Tira as duplicatas (inclusive similares) de uma lista de strings
-def remove_duplicates(text_list: list[str], threshold: float = 0.9) -> list[str]:
+def remove_duplicates(text_list: list[str], threshold: float = 0.98) -> list[str]:
     """
     Remove duplicatas (inclusive similares) de uma lista de strings.
     threshold define o quão parecidas duas entradas precisam ser para serem consideradas iguais.
@@ -467,16 +469,19 @@ def remove_duplicates(text_list: list[str], threshold: float = 0.9) -> list[str]
 ### === FLUXO DE BUSCA PARA LISTA DE NOMES === ###
 
 #
-def degree_search(name):
+def degree_search(name, ):
     """Função principal para buscar e extrair formações acadêmicas de um nome."""
+
     for i in range(count_search_results()):
-        click_result_by_index(i)
+        if click_result_by_index(i): 
+            degree_csv(name if i == 0 else name+f"({i})", ['Index não encontrado'])
+            continue
         if open_lattes_cv():
             dados = [name, 'Erro na Abertura do Currículo']
             degree_csv(name if i == 0 else name+f"({i})", dados)
             continue
         dados = extract_degree(driver.page_source)
-        degree_csv(name if i == 0 else name+f"({i})", remove_duplicates(clean_degree(dados), threshold=0.8))
+        degree_csv(name if i == 0 else name+f"({i})", remove_duplicates(clean_degree(dados)))
         driver.close()  # Fecha aba do currículo
         driver.switch_to.window(driver.window_handles[0])  # Volta à busca
         close_modal()
@@ -509,6 +514,9 @@ def continue_search(name, year, progress_callback, i, total, index):
 results = []
 # Executa a automação completa para uma lista de nomes
 def run_search(name_list, year="Todos", progress_callback=None):
+    # Deletar o arquivo CSV
+    if os.path.exists("formacoes.csv"):
+        os.remove("formacoes.csv")
     total = len(name_list)
     for i, name in enumerate(name_list, 1):
         os.system('cls' if os.name == 'nt' else 'clear')
@@ -520,6 +528,11 @@ def run_search(name_list, year="Todos", progress_callback=None):
         print(f"Resultados encontrados para '{name}': {x}")
         if switch_var.get():
             print("Modo Formação Ativado")
+            if x == 0:
+                degree_csv(name, ['Usuario não encontrado'])
+                if progress_callback:
+                    progress_callback(i, total) 
+                continue
             degree_search(name)
             if progress_callback:
                 progress_callback(i, total) 

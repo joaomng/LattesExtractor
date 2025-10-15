@@ -20,8 +20,10 @@ from selenium.webdriver.support import expected_conditions as EC
 # === CONFIGURAÇÃO DO NAVEGADOR ===
 options = Options()
 options.add_argument("--start-maximized")
+options.add_argument('--headless') # descomente se quiser rodar em background
 driver = webdriver.Chrome(options=options)
 wait = WebDriverWait(driver, 20)
+
 
 # === FUNÇÕES DE NAVEGAÇÃO E INTERAÇÃO COM A PÁGINA DO CNPq ===
 
@@ -361,8 +363,7 @@ def cleaner_degree(lista, instituicao=True):
                 #procurando a grande área
                 while(i<len(frases)):
                     frase = frases[i]
-
-                    if(frase.find("Grande área") != -1): #==0?
+                    if(frase.find("Grande area") != -1): #==0?
                         #é pq encontramos a grande área
 
                         string_final +=  frase + "."
@@ -443,7 +444,7 @@ def clean_degree(html: str):
             vistos.add(texto_norm)
             limpas.append(texto)
 
-    return cleaner_degree(limpas)
+    return cleaner_degree(limpas, False)
 
 # Testa a similaridade entre duas strings
 def similar(a: str, b: str) -> float:
@@ -451,7 +452,7 @@ def similar(a: str, b: str) -> float:
     return SequenceMatcher(None, a, b).ratio()
 
 # Tira as duplicatas (inclusive similares) de uma lista de strings
-def remove_duplicates(text_list: list[str], threshold: float = 0.98) -> list[str]:
+def remove_duplicates(text_list: list[str], threshold: float = 0.90) -> list[str]:
     """
     Remove duplicatas (inclusive similares) de uma lista de strings.
     threshold define o quão parecidas duas entradas precisam ser para serem consideradas iguais.

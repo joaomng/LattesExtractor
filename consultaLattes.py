@@ -285,7 +285,7 @@ def generate_csv(data, filename="producao.csv"):
 
 
 # Gera um CSV com as formações acadêmicas
-def degree_csv(nome: str, formacoes: list[str], endereco: str, caminho_csv: str = "formacoes.csv"):
+def degree_csv(nome: str, formacoes: list[str], endereco: str='', caminho_csv: str = "formacoes.csv"):
     """
     Cria (ou adiciona a) um arquivo CSV com duas colunas:
     Nome | Formacao
@@ -301,7 +301,7 @@ def degree_csv(nome: str, formacoes: list[str], endereco: str, caminho_csv: str 
         
         # Escreve o cabeçalho apenas se o arquivo estiver vazio
         if arquivo.tell() == 0:
-            writer.writerow(["Nome", "Formacao", "Endereço"])
+            writer.writerow(["Nome", "Formação", "Endereço"])
         
         for f in formacoes:
             writer.writerow([nome, f, endereco])
@@ -462,8 +462,8 @@ def clean_address(html: str) -> str:
     texto = texto.replace("Telefone:", "\nTelefone:")
     texto = texto.replace("Fax:", "\nFax:")
     texto = texto.replace("URL da Homepage:", "\nURL da Homepage:")
-    x = texto.split("\n")
-    texto = x[0]
+    # x = texto.split("\n")
+    # texto = x[0]
 
     return texto.strip()
 
@@ -496,11 +496,10 @@ def degree_search(name, ):
 
     for i in range(count_search_results()):
         if click_result_by_index(i): 
-            degree_csv(name if i == 0 else name+f"({i})", ['Index não encontrado'])
+            degree_csv(name if i == 0 else name+f"({i})", ['Index não encontrado'], '')
             continue
         if open_lattes_cv():
-            dados = [name, 'Erro na Abertura do Currículo']
-            degree_csv(name if i == 0 else name+f"({i})", dados)
+            degree_csv(name if i == 0 else name+f"({i})", ['Erro na Abertura do Currículo'], '')
             continue
         formation = extract_curriculum(driver.page_source, "FormacaoAcademicaTitulacao")
         adress = extract_curriculum(driver.page_source, "Endereco")
@@ -552,7 +551,7 @@ def run_search(name_list, year="Todos", progress_callback=None):
         if switch_var.get():
             print("Modo Formação Ativado")
             if x == 0:
-                degree_csv(name, ['Usuario não encontrado'])
+                degree_csv(name, ['Usuario não encontrado'], '')
                 if progress_callback:
                     progress_callback(i, total) 
                 continue

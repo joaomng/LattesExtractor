@@ -20,7 +20,7 @@ from selenium.webdriver.support import expected_conditions as EC
 # === CONFIGURAÇÃO DO NAVEGADOR ===
 options = Options()
 options.add_argument("--start-maximized")
-options.add_argument('--headless') # descomente se quiser rodar em background
+# options.add_argument('--headless') # descomente se quiser rodar em background
 driver = webdriver.Chrome(options=options)
 wait = WebDriverWait(driver, 20)
 
@@ -197,7 +197,7 @@ def select_year_filter(year="Todos"):
         except:
             pass
 
-# === FUNÇÃO PARA EXTRAÇÃO DOS DADOS DE PRODUÇÃO ===
+# === FUNÇÃO PARA EXTRAÇÃO DOS DADOS ===
 
 # Extrai os dados da produção agrupando por seção (ex: Produção Bibliográfica)
 def extract_sectioned_tables(name):
@@ -246,41 +246,28 @@ def extract_sectioned_tables(name):
     finally:
         driver.switch_to.default_content()
 
-# Extrai dos dados da formação acadêmica
-def extract_degree(html: str) -> str:
-    """
-    Extrai o conteúdo HTML entre as duas primeiras <hr> após o elemento
-    <a name="FormacaoAcademicaTitulacao">.
-    """
-    # Aguarda o carregamento do nome no currículo
-    try: 
-        WebDriverWait(driver, 20).until(
-            EC.presence_of_element_located((By.XPATH, "//h2[@class='nome']"))
-        )
-    except Exception as e:
-        print(f"Erro ao aguardar o nome do currículo: {e}")
+# Extrai dos dados do curriculo de acordo com a seção desejada #extract_curriculum(section="Endereco") extract_curriculum(section="FormacaoAcademicaTitulacao")
+def extract_curriculum(html: str, section: str) -> str:
     soup = BeautifulSoup(html, "html.parser")
 
-    # Localiza o <a> de referência
-    anchor = soup.find("a", {"name": "FormacaoAcademicaTitulacao"})
+    anchor = soup.find("a", {"name": section})
     if not anchor:
         return ""
 
-    # Percorre os elementos seguintes no DOM
-    hr_count = 0
-    content_parts = []
+    # Encontra os <hr> seguintes
+    hrs = anchor.find_all_next("hr")
+    if len(hrs) < 2:
+        return ""
 
-    for elem in anchor.next_elements:
-        if getattr(elem, "name", None) == "hr":
-            hr_count += 1
-            if hr_count == 2:
-                break
-            continue
-        if hr_count < 1:
-            continue  # só começa após a primeira <hr>
-        content_parts.append(str(elem))
+    # Pega tudo entre o 1º e o 2º <hr>
+    content = []
+    for elem in hrs[0].next_siblings:
+        if elem == hrs[1]:
+            break
+        content.append(str(elem))
 
-    return "".join(content_parts).strip()
+    return "".join(content).strip()
+
 
 # === FUNÇÃO PARA SALVAR RESULTADOS EM CSV ===
 
@@ -298,7 +285,7 @@ def generate_csv(data, filename="producao.csv"):
 
 
 # Gera um CSV com as formações acadêmicas
-def degree_csv(nome: str, formacoes: list[str], caminho_csv: str = "formacoes.csv"):
+def degree_csv(nome: str, formacoes: list[str], endereco: str, caminho_csv: str = "formacoes.csv"):
     """
     Cria (ou adiciona a) um arquivo CSV com duas colunas:
     Nome | Formacao
@@ -314,10 +301,10 @@ def degree_csv(nome: str, formacoes: list[str], caminho_csv: str = "formacoes.cs
         
         # Escreve o cabeçalho apenas se o arquivo estiver vazio
         if arquivo.tell() == 0:
-            writer.writerow(["Nome", "Formacao"])
+            writer.writerow(["Nome", "Formacao", "Endereço"])
         
         for f in formacoes:
-            writer.writerow([nome, f])
+            writer.writerow([nome, f, endereco])
 
 ## === FUNÇÕES AUXILIARES === ###
 
@@ -444,7 +431,41 @@ def clean_degree(html: str):
             vistos.add(texto_norm)
             limpas.append(texto)
 
-    return cleaner_degree(limpas, False)
+    return limpas
+
+# Limpa o HTML do endereço profissional
+def clean_address(html: str) -> str:
+    """
+    Limpa o HTML do endereço profissional do currículo Lattes,
+    removendo tags e repetições e formatando o texto.
+    """
+    soup = BeautifulSoup(html, "html.parser")
+
+    # Extrai texto plano (mantendo <br> como quebra de linha)
+    for br in soup.find_all("br"):
+        br.replace_with("\n")
+
+    texto = soup.get_text(" ", strip=True)
+
+    # Remove repetições da expressão "Endereço Profissional"
+    texto = re.sub(r"(Endere[cç]o\s+Profissional\s*)+", "", texto, flags=re.IGNORECASE)
+
+    # Remove múltiplos espaços e espaços antes de pontuação
+    texto = re.sub(r"\s{2,}", " ", texto)
+    texto = re.sub(r"\s+([.,;:])", r"\1", texto)
+
+    # Corrige quebras de linha excessivas
+    texto = re.sub(r"\n{2,}", "\n", texto)
+
+    # Organiza visualmente
+    texto = texto.replace(". ", ".\n")
+    texto = texto.replace("Telefone:", "\nTelefone:")
+    texto = texto.replace("Fax:", "\nFax:")
+    texto = texto.replace("URL da Homepage:", "\nURL da Homepage:")
+    x = texto.split("\n")
+    texto = x[0]
+
+    return texto.strip()
 
 # Testa a similaridade entre duas strings
 def similar(a: str, b: str) -> float:
@@ -469,7 +490,7 @@ def remove_duplicates(text_list: list[str], threshold: float = 0.90) -> list[str
 
 ### === FLUXO DE BUSCA PARA LISTA DE NOMES === ###
 
-#
+#Continua a busca para múltiplos resultados com a opção de formação ativada
 def degree_search(name, ):
     """Função principal para buscar e extrair formações acadêmicas de um nome."""
 
@@ -481,8 +502,9 @@ def degree_search(name, ):
             dados = [name, 'Erro na Abertura do Currículo']
             degree_csv(name if i == 0 else name+f"({i})", dados)
             continue
-        dados = extract_degree(driver.page_source)
-        degree_csv(name if i == 0 else name+f"({i})", remove_duplicates(clean_degree(dados)))
+        formation = extract_curriculum(driver.page_source, "FormacaoAcademicaTitulacao")
+        adress = extract_curriculum(driver.page_source, "Endereco")
+        degree_csv(name if i == 0 else name+f"({i})", remove_duplicates(cleaner_degree(clean_degree(formation), instituicao=False)), clean_address(adress) if adress else "Endereço não encontrado")
         driver.close()  # Fecha aba do currículo
         driver.switch_to.window(driver.window_handles[0])  # Volta à busca
         close_modal()

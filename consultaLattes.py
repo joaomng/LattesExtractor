@@ -29,6 +29,9 @@ from selenium.webdriver.support import expected_conditions as EC
 
 
 
+
+
+
 # === CONFIGURAÇÃO DO NAVEGADOR ===
 options = Options()
 options.add_argument("--start-maximized")
@@ -323,27 +326,36 @@ def degree_csv(nome: str, formacoes: list[str], endereco: str='', caminho_csv: s
 def cleaner_degree(lista, instituicao=True):
     """
     recebe uma lista de strings (a retornada por clean_degree). Cada string
-    é uma formação completa.
-    Pra cada formação, a altera para informar só o nome do título ("doutorado em tal coisa",
-    "mestrado em tal coisa", "graduação em tal coisa") e a grande área da formação.
-
+    é uma formação completa da mesma pessoa. (OBS: o texto ainda tem maiúsculas e acentos)
+    
     No caso que realmente precisamos é da GRANDE ÁREA DA MAIOR TITULAÇÃO
     E NOME DO CURSO DE GRADUAÇÃO. Mas por via das dúvidas vou colocar tanto 
     o nome da maior titulação "doutorado, mestrado, especialização, etc", 
     quanto a grande área.
 
-    Retorna a lista alterada
+    Retorna uma lista com a maior titulação e o nome do curso de graduação
+    exemplo: ["Doutorado. Grande área: Ciências Exatas e da Terra", "Graduação em Matemática"] 
     """
     
     lista_final = []
 
-    #appendar = 1 #flag se vou realmente querer fazer o append ou não. as vezes vou querer remover
-                 #por completo uma formação, pq não é graduação nem doutorado nem mestrado
+    graduacao = ""
+    maior_titulo = ""
+    grande_area = ""
+
+    ranking_titulacao = ["doutorado", "mestrado", "especialização"] # falta terminar esse ranking
+    #vou usar pra dps que coletar todas as titulações da formação completa, descobrir qual é a maior.
+    #A partir da maior vou descobrir qual é a grande área.
+    #Enquanto isso, se eu encontrar graduação vou salvar em "graduação"
+    #IMPORTANTE: o que fazer se tiver mais de uma graduação?
+    #    Enquanto não tenho resposta oficial vou fazendo graduacao += texto+"; "
+    #    onde texto é algo do tipo "Graduação em Ciências atuariais"  
+
+    
 
     if(len(lista)>0):             
     
         for formacao in lista:
-            #appendar = 1
 
             string_final=""
 
@@ -364,7 +376,7 @@ def cleaner_degree(lista, instituicao=True):
                 #procurando a grande área
                 while(i<len(frases)):
                     frase = frases[i]
-                    if(frase.find("Grande area") != -1): #==0?
+                    if(frase.find("Grande área") != -1): #==0?
                         #é pq encontramos a grande área
 
                         string_final +=  frase + "."

@@ -17,6 +17,18 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait, Select
 from selenium.webdriver.support import expected_conditions as EC
 
+# ToDo
+# Tirar a parte da coleta do endereço (feito)
+# Alterar o cabeçalho no caso da formação pra ser "Nome, Maior titulação, Curso de graduação"  (feito)
+
+# Modificar o cleaner degree pra pegar so a maior titulação e o curso de graduação  
+#    A ideia é pra cada nome, retornar uma lista do tipo ["Doutorado. Grande área: Ciências Exatas e da Terra", "Graduação em Matemática"]
+
+# Modificar o que se faz com o retorno do clean degree pra colocar essas informações no csv. (feito - conferir) 
+#   Note que idealmente será uma linha por nome
+
+
+
 # === CONFIGURAÇÃO DO NAVEGADOR ===
 options = Options()
 options.add_argument("--start-maximized")
@@ -301,7 +313,7 @@ def degree_csv(nome: str, formacoes: list[str], endereco: str='', caminho_csv: s
         
         # Escreve o cabeçalho apenas se o arquivo estiver vazio
         if arquivo.tell() == 0:
-            writer.writerow(["Nome", "Formação", "Endereço"])
+            writer.writerow(["Nome", "Maior titulação", "Curso de graduação"])
         
         for f in formacoes:
             writer.writerow([nome, f, endereco])
@@ -316,7 +328,9 @@ def cleaner_degree(lista, instituicao=True):
     "mestrado em tal coisa", "graduação em tal coisa") e a grande área da formação.
 
     No caso que realmente precisamos é da GRANDE ÁREA DA MAIOR TITULAÇÃO
-    E NOME DO CURSO DE GRADUAÇÃO
+    E NOME DO CURSO DE GRADUAÇÃO. Mas por via das dúvidas vou colocar tanto 
+    o nome da maior titulação "doutorado, mestrado, especialização, etc", 
+    quanto a grande área.
 
     Retorna a lista alterada
     """
@@ -491,7 +505,7 @@ def remove_duplicates(text_list: list[str], threshold: float = 0.90) -> list[str
 ### === FLUXO DE BUSCA PARA LISTA DE NOMES === ###
 
 #Continua a busca para múltiplos resultados com a opção de formação ativada
-def degree_search(name, ):
+def degree_search(name):
     """Função principal para buscar e extrair formações acadêmicas de um nome."""
 
     for i in range(count_search_results()):
@@ -503,7 +517,9 @@ def degree_search(name, ):
             continue
         formation = extract_curriculum(driver.page_source, "FormacaoAcademicaTitulacao")
         adress = extract_curriculum(driver.page_source, "Endereco")
-        degree_csv(name if i == 0 else name+f"({i})", remove_duplicates(cleaner_degree(clean_degree(formation), instituicao=False)), clean_address(adress) if adress else "Endereço não encontrado")
+        cleaner_formation = cleaner_degree(clean_degree(formation), instituicao=False) #se tudo der certo o cleaner degree só vai retornar uma lista com dois valores mesmo
+
+        degree_csv(name if i == 0 else name+f"({i})", cleaner_formation[0], cleaner_formation[1]) #nome, maior titulação, curso de graduação
         driver.close()  # Fecha aba do currículo
         driver.switch_to.window(driver.window_handles[0])  # Volta à busca
         close_modal()

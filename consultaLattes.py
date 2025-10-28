@@ -322,6 +322,21 @@ def degree_csv(nome: str, formacoes: str, grad: str='', caminho_csv: str = "form
 
 ## === FUNÇÕES AUXILIARES === ###
 
+def leading_spaces(frase):
+    '''conta todos os espaços no começo da string'''
+
+    count = 0
+    i = 0
+    while(i < len(frase)):
+        if(frase[i] == ' '):
+            count+=1
+        else:
+            break
+
+        i += 1
+    
+    return count
+
 def cleaner_degree(lista, instituicao=True):
     """
     recebe uma lista de strings (a retornada por clean_degree). Cada string
@@ -381,7 +396,8 @@ def cleaner_degree(lista, instituicao=True):
 
 
                 if(titulacao == "Graduação"):
-
+                    print("\n\ngraduação encontrada. Frase atual: ", frase)
+                    print()
                     index_grad = frase.find("Graduação") #se a titulação que eu extraí da frase é graduação, então "Graduação" certamente está lá
                     grad_atual = frase[index_grad:]
                     if((similar(grad_atual, graduacao) <= 0.9) or graduacao == ''): #pra não repetir cursos iguais de graduação
@@ -413,9 +429,12 @@ def cleaner_degree(lista, instituicao=True):
                             ind_set = grande_area2.find("Setor") #as vezes aparece "setores de atividade"
                             ind_sub = grande_area2.find("Subárea") #as vezes aparece subarea
 
+                            leading = leading_spaces(grande_area2)
+
                             ind_grande_rep = (((grande_area2.strip())[6:]).lower()).find("grande área") #as vezes aparece grande area de novo
-                            ind_grande_rep += grande_area2.find("Grande área")+6 #pra refletir o indice real da segunda "grande area", pq na busca eu saltei 6 + a qtd de espaços
-                                              #parece que ainda ta com erro aqui...corrigir!!!
+                            if(ind_grande_rep != -1):
+                                ind_grande_rep += 6+leading #pra refletir o indice real da segunda "grande area", pq na busca eu saltei 6 + a qtd de espaços
+                                              
 
                             lixo = [ind_tit, ind_set, ind_sub, ind_grande_rep]
 

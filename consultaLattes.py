@@ -337,6 +337,22 @@ def leading_spaces(frase):
     
     return count
 
+def similar_lista(lista, item, threshold=0.9):
+    '''Calcula a similaridade do item com todos os itens da lista.
+    Retorna TRUE sse o item tem similaridade de pelo menos <threshold>
+    com algum item da lista '''
+
+    ret = False
+
+    for elem in lista:
+        if(similar(elem, item)>=threshold):
+            ret = True 
+            break
+
+
+    return ret
+
+
 def cleaner_degree(lista, instituicao=True):
     """
     recebe uma lista de strings (a retornada por clean_degree). Cada string
@@ -367,6 +383,8 @@ def cleaner_degree(lista, instituicao=True):
 
     #appendar = 1
     rank_maior = 9999999 #podia ser 4
+
+    graduacoes = [] #lista de graduacoes
 
 
 
@@ -400,8 +418,10 @@ def cleaner_degree(lista, instituicao=True):
                     print()
                     index_grad = frase.find("Graduação") #se a titulação que eu extraí da frase é graduação, então "Graduação" certamente está lá
                     grad_atual = frase[index_grad:]
-                    if((similar(grad_atual, graduacao) <= 0.9) or graduacao == ''): #pra não repetir cursos iguais de graduação
+                    if( (similar_lista(graduacoes, grad_atual, 0.9) == False) or graduacao == ''): #pra não repetir cursos iguais de graduação
                         graduacao += grad_atual + ". "
+                        graduacoes.append(grad_atual)
+
 
         #descobrir a grande área da maior titulação
 

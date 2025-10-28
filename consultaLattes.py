@@ -17,6 +17,21 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait, Select
 from selenium.webdriver.support import expected_conditions as EC
 
+# ToDo
+# Tirar a parte da coleta do endereço (feito)
+# Alterar o cabeçalho no caso da formação pra ser "Nome, Maior titulação, Curso de graduação"  (feito)
+
+# Modificar o cleaner degree pra pegar so a maior titulação e o curso de graduação  
+#    A ideia é pra cada nome, retornar uma lista do tipo ["Doutorado. Grande área: Ciências Exatas e da Terra", "Graduação em Matemática"]
+
+# Modificar o que se faz com o retorno do clean degree pra colocar essas informações no csv. (feito - conferir) 
+#   Note que idealmente será uma linha por nome
+
+
+
+
+
+
 # === CONFIGURAÇÃO DO NAVEGADOR ===
 options = Options()
 options.add_argument("--start-maximized")
@@ -285,7 +300,7 @@ def generate_csv(data, filename="producao.csv"):
 
 
 # Gera um CSV com as formações acadêmicas
-def degree_csv(nome: str, formacoes: list[str], endereco: str='', caminho_csv: str = "formacoes.csv"):
+def degree_csv(nome: str, formacoes: str, grad: str='', caminho_csv: str = "formacoes.csv"):
     """
     Cria (ou adiciona a) um arquivo CSV com duas colunas:
     Nome | Formacao
@@ -301,75 +316,190 @@ def degree_csv(nome: str, formacoes: list[str], endereco: str='', caminho_csv: s
         
         # Escreve o cabeçalho apenas se o arquivo estiver vazio
         if arquivo.tell() == 0:
-            writer.writerow(["Nome", "Formação", "Endereço"])
+            writer.writerow(["Nome", "Maior titulação", "Curso de graduação"])
         
-        for f in formacoes:
-            writer.writerow([nome, f, endereco])
+        writer.writerow([nome, formacoes, grad])
 
 ## === FUNÇÕES AUXILIARES === ###
+
+def leading_spaces(frase):
+    '''conta todos os espaços no começo da string'''
+
+    count = 0
+    i = 0
+    while(i < len(frase)):
+        if(frase[i] == ' '):
+            count+=1
+        else:
+            break
+
+        i += 1
+    
+    return count
+
+def similar_lista(lista, item, threshold=0.9):
+    '''Calcula a similaridade do item com todos os itens da lista.
+    Retorna TRUE sse o item tem similaridade de pelo menos <threshold>
+    com algum item da lista '''
+
+    ret = False
+
+    for elem in lista:
+        if(similar(elem, item)>=threshold):
+            ret = True 
+            break
+
+
+    return ret
+
 
 def cleaner_degree(lista, instituicao=True):
     """
     recebe uma lista de strings (a retornada por clean_degree). Cada string
-    é uma formação completa.
-    Pra cada formação, a altera para informar só o nome do título ("doutorado em tal coisa",
-    "mestrado em tal coisa", "graduação em tal coisa") e a grande área da formação.
-
+    é uma formação completa da mesma pessoa. (OBS: o texto ainda tem maiúsculas e acentos)
+    
     No caso que realmente precisamos é da GRANDE ÁREA DA MAIOR TITULAÇÃO
-    E NOME DO CURSO DE GRADUAÇÃO
+    E NOME DO CURSO DE GRADUAÇÃO. Mas por via das dúvidas vou colocar tanto 
+    o nome da maior titulação "doutorado, mestrado, especialização, etc", 
+    quanto a grande área.
 
-    Retorna a lista alterada
+    Retorna uma lista com a maior titulação e o nome do curso de graduação
+    exemplo: ["Doutorado. Grande área: Ciências Exatas e da Terra", "Graduação em Matemática"] 
     """
     
     lista_final = []
 
-    #appendar = 1 #flag se vou realmente querer fazer o append ou não. as vezes vou querer remover
-                 #por completo uma formação, pq não é graduação nem doutorado nem mestrado
+    graduacao = ""
+    maior_titulo = ""
+    grande_area = ""
+
+    ranking_titulacao = ["Doutorado", "Mestrado", "Especialização", "Graduação"] # falta terminar esse ranking
+    #vou usar pra dps que coletar todas as titulações da formação completa, descobrir qual é a maior.
+    #A partir da maior vou descobrir qual é a grande área.
+    #Enquanto isso, se eu encontrar graduação vou salvar em "graduação"
+    #IMPORTANTE: o que fazer se tiver mais de uma graduação?
+    #    Enquanto não tenho resposta oficial vou fazendo graduacao += texto+"; "
+    #    onde texto é algo do tipo "Graduação em Ciências atuariais"  
+
+    #appendar = 1
+    rank_maior = 9999999 #podia ser 4
+
+    graduacoes = [] #lista de graduacoes
+
+
 
     if(len(lista)>0):             
     
         for formacao in lista:
-            #appendar = 1
-
-            string_final=""
 
             frases = formacao.split(".")
 
             if(len(frases)>0):
 
+
                 frase = frases[0]
-                #adicionando a segunda frase, que normalmente é a instituição
-                #mas só se a flag instituicao estiver ativada
-                if instituicao and len(frases)>1:
-                    frase = frase +"."+ frases[1]
-                
-                string_final += frase +". "#"ano tal - ano tal Doutorado em tal coisa"
+                normalized = " ".join(frase.split()).strip() #normaliza espaços
+                aux = normalized.split()
+                titulacao = aux[3] #os textos sao do tipo "1998 - 2002 Doutorado em tal coisa"
 
-                i = 1
+                try:
+                    rank_titulacao = ranking_titulacao.index(titulacao)
 
-                #procurando a grande área
-                while(i<len(frases)):
-                    frase = frases[i]
-                    if(frase.find("Grande area") != -1): #==0?
-                        #é pq encontramos a grande área
+                except:
+                    continue #a "titulação" presente na formação não se enquadra nas com as quais devemos nos importar
 
-                        string_final +=  frase + "."
-                        break
-
-                    i+=1
+                if(rank_titulacao < rank_maior): #se o rank é menor,é pq é uma titulação de maior grau
+                    rank_maior = rank_titulacao
+                    maior_titulo = titulacao
 
 
+                if(titulacao == "Graduação"):
+                    print("\n\ngraduação encontrada. Frase atual: ", frase)
+                    print()
+                    index_grad = frase.find("Graduação") #se a titulação que eu extraí da frase é graduação, então "Graduação" certamente está lá
+                    grad_atual = frase[index_grad:]
+                    if( (similar_lista(graduacoes, grad_atual, 0.9) == False) or graduacao == ''): #pra não repetir cursos iguais de graduação
+                        graduacao += grad_atual + ". "
+                        graduacoes.append(grad_atual)
 
-            else: #a formacao por algum motivo nao tinha nem ponto final
-                string_final = formacao #vou manter igual por via das dúvidas
+
+        #descobrir a grande área da maior titulação
+
+        for formacao in lista:
+            frases = formacao.split(".")
+
+            if(len(frases)>0):
+                #se for a formação da maior titulação, procurar a grande área
+
+                frase = frases[0]
+                normalized = " ".join(frase.split()).strip() #normaliza espaços
+                aux = normalized.split()
+                titulacao = aux[3] #os textos sao do tipo "1998 - 2002 Doutorado em tal coisa"
+                if(titulacao == maior_titulo):
+                    for f in frases:
+                        print("procurando a grande área do(a) ", titulacao)
+                        print("Frase atual: ", f)
+                        if(f.find("Grande área") != -1):
+                            print("Grande área econtrada")
+                            grande_area1 = f #f deveria ser algo do tipo "Grande área: ciencias exatas e da terra"
+                            grande_area2 = re.sub(r"Oasisbr|O\s*Portal\s*Brasileiro\s*de\s*Publicações.*", "", grande_area1, flags=re.IGNORECASE)
+                            print("grande_area2: ", grande_area2)
+
+                            ind_tit = grande_area2.find(titulacao) #indice do titulo
+                            ind_set = grande_area2.find("Setor") #as vezes aparece "setores de atividade"
+                            ind_sub = grande_area2.find("Subárea") #as vezes aparece subarea
+
+                            leading = leading_spaces(grande_area2)
+
+                            ind_grande_rep = (((grande_area2.strip())[6:]).lower()).find("grande área") #as vezes aparece grande area de novo
+                            if(ind_grande_rep != -1):
+                                ind_grande_rep += 6+leading #pra refletir o indice real da segunda "grande area", pq na busca eu saltei 6 + a qtd de espaços
+                                              
+
+                            lixo = [ind_tit, ind_set, ind_sub, ind_grande_rep]
+
+
+
+                            for ind in [ind_tit, ind_set, ind_sub, ind_grande_rep]:
+                                if(ind<0):
+                                    lixo.remove(ind) #quero a lista so com os indices das coisas que estavam lá
+                           
+                            
+                            if(len(lixo)>0): #se algum dos textos indesejaveis foi encontrado e portanto sobrou algo na lista
+                                menor  = min(lixo)
+                                print("menor indice", menor)
+                                grande_area = grande_area2[:menor]
+
+                            #if(ind_tit>= 0 ):
+                             #   grande_area = grande_area2[:ind_tit] #corrigindo um bug onde a titulação acaba aparecendo de novo
+                            
+                            #elif(ind_set >= 0):
+                            #    grande_area = grande_area2[:ind_set]
+
+                            #elif(ind_sub>=0):
+                            #    grande_area = grande_area2[:ind_sub]
+
+                            #elif(ind_grande_rep >= 0):
+                            #    grande_area = grande_area2[:ind_grande_rep]                                
+
+                            else: #se ja tava limpo
+                                grande_area = grande_area2
+
+                            break
+                    break
+
+
 
         
-            #if(appendar ==1):
-                #lista_final.append(string_final)
 
-            lista_final.append(string_final)
+    titulacao_e_grande_area = maior_titulo+". "+grande_area
 
-    return lista_final
+    print("titulacao e grande area: ", titulacao_e_grande_area)
+
+    retorno = [titulacao_e_grande_area, graduacao]
+    print("retornando ", retorno) 
+
+    return [titulacao_e_grande_area, graduacao]
 
 
 # Limpa e extrai as formações acadêmicas do HTML
@@ -404,7 +534,7 @@ def clean_degree(html: str):
 
         # Limpeza geral
         texto = re.sub(r"\s+", " ", texto)
-        texto = re.sub(r"Oasisbr|O\s*Portal\s*Brasileiro\s*de\s*Publicações.*", "", texto, flags=re.IGNORECASE)
+        #texto = re.sub(r"Oasisbr|O\s*Portal\s*Brasileiro\s*de\s*Publicações.*", "", texto, flags=re.IGNORECASE)
         texto = re.sub(r"[,.]{2,}", ".", texto)
         texto = texto.strip(" ,.;")
 
@@ -491,7 +621,7 @@ def remove_duplicates(text_list: list[str], threshold: float = 0.90) -> list[str
 ### === FLUXO DE BUSCA PARA LISTA DE NOMES === ###
 
 #Continua a busca para múltiplos resultados com a opção de formação ativada
-def degree_search(name, ):
+def degree_search(name):
     """Função principal para buscar e extrair formações acadêmicas de um nome."""
 
     for i in range(count_search_results()):
@@ -503,7 +633,9 @@ def degree_search(name, ):
             continue
         formation = extract_curriculum(driver.page_source, "FormacaoAcademicaTitulacao")
         adress = extract_curriculum(driver.page_source, "Endereco")
-        degree_csv(name if i == 0 else name+f"({i})", remove_duplicates(cleaner_degree(clean_degree(formation), instituicao=False)), clean_address(adress) if adress else "Endereço não encontrado")
+        cleaner_formation = cleaner_degree(clean_degree(formation), instituicao=False) #se tudo der certo o cleaner degree só vai retornar uma lista com dois valores mesmo
+
+        degree_csv(name if i == 0 else name+f"({i})", cleaner_formation[0], cleaner_formation[1]) #nome, maior titulação, curso de graduação
         driver.close()  # Fecha aba do currículo
         driver.switch_to.window(driver.window_handles[0])  # Volta à busca
         close_modal()
